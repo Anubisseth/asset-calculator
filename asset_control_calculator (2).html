@@ -1,0 +1,484 @@
+import React, { useState } from 'react';
+import { DollarSign, TrendingUp, Building, Calendar, Mail, Phone, User, Send } from 'lucide-react';
+
+export default function AssetCalculator() {
+  const [purchasePrice, setPurchasePrice] = useState(500000);
+  const [downPayment, setDownPayment] = useState(20);
+  const [interestRate, setInterestRate] = useState(6);
+  const [loanTermYears, setLoanTermYears] = useState(20);
+  const [monthlyRent, setMonthlyRent] = useState(20000);
+  const [currency, setCurrency] = useState('USD');
+  
+  // Currency configuration
+  const currencies = {
+    USD: { symbol: '$', name: 'US Dollar', code: 'USD' },
+    ZAR: { symbol: 'R', name: 'South African Rand', code: 'ZAR' },
+    EUR: { symbol: '€', name: 'Euro', code: 'EUR' },
+    GBP: { symbol: '£', name: 'British Pound', code: 'GBP' }
+  };
+  
+  // Form state
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    message: ''
+  });
+  const [submitStatus, setSubmitStatus] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Calculations
+  const downPaymentAmount = (purchasePrice * downPayment) / 100;
+  const loanAmount = purchasePrice - downPaymentAmount;
+  
+  const monthlyInterestRate = interestRate / 100 / 12;
+  const numberOfPayments = loanTermYears * 12;
+  const monthlyPayment = loanAmount * 
+    (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, numberOfPayments)) / 
+    (Math.pow(1 + monthlyInterestRate, numberOfPayments) - 1);
+  
+  const totalPaid = monthlyPayment * numberOfPayments;
+  const totalInterest = totalPaid - loanAmount;
+  
+  const monthlyCashFlow = monthlyRent - monthlyPayment;
+  const totalRentCollected = monthlyRent * numberOfPayments;
+  const totalMortgagePaid = monthlyPayment * numberOfPayments;
+  const netCashFlow = totalRentCollected - totalMortgagePaid;
+  const totalWealth = netCashFlow + purchasePrice;
+  
+  const roi = ((totalWealth - downPaymentAmount) / downPaymentAmount) * 100;
+
+  const formatCurrency = (num) => {
+    const selectedCurrency = currencies[currency];
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: selectedCurrency.code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+      currencyDisplay: 'symbol'
+    }).format(num);
+  };
+
+  const handleFormChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitStatus('');
+
+    // Prepare data to send to n8n
+    const payload = {
+      // Contact Information
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      message: formData.message,
+      
+      // Calculator Data
+      calculatorData: {
+        currency: currency,
+        currencySymbol: currencies[currency].symbol,
+        purchasePrice: purchasePrice,
+        downPayment: downPayment,
+        downPaymentAmount: downPaymentAmount,
+        interestRate: interestRate,
+        loanTermYears: loanTermYears,
+        monthlyRent: monthlyRent,
+        monthlyPayment: Math.round(monthlyPayment),
+        monthlyCashFlow: Math.round(monthlyCashFlow),
+        totalWealth: Math.round(totalWealth),
+        bankProfit: Math.round(totalInterest),
+        yourProfit: Math.round(totalWealth),
+        roi: Math.round(roi),
+        multiplier: (totalWealth / totalInterest).toFixed(1)
+      },
+      
+      // Metadata
+      timestamp: new Date().toISOString(),
+      source: 'Asset Control Calculator'
+    };
+
+    try {
+      // Replace this URL with your n8n webhook URL
+      const n8nWebhookUrl = 'https://n8n.srv947350.hstgr.cloud/webhook/b2471d5d-00b7-4497-b822-466529362f38';
+      
+      const response = await fetch(n8nWebhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        setSubmitStatus('success');
+        setFormData({ name: '', email: '', phone: '', message: '' });
+        setTimeout(() => {
+          setShowForm(false);
+          setSubmitStatus('');
+        }, 3000);
+      } else {
+        setSubmitStatus('error');
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3">
+            <Building className="text-emerald-400" size={40} />
+            Asset Control Calculator
+          </h1>
+          <p className="text-slate-300 text-lg">Control the asset, collect the profits</p>
+        </div>
+
+        {/* Currency Selector */}
+        <div className="bg-slate-800 rounded-xl p-4 shadow-xl border border-slate-700 mb-6 max-w-md mx-auto">
+          <label className="block text-slate-300 mb-2 font-medium text-center">
+            Select Currency
+          </label>
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer text-center text-lg font-semibold"
+          >
+            {Object.entries(currencies).map(([code, curr]) => (
+              <option key={code} value={code}>
+                {curr.symbol} {curr.name} ({code})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <div className="bg-slate-800 rounded-xl p-6 shadow-xl border border-slate-700">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+              <DollarSign className="text-blue-400" size={24} />
+              Property Details
+            </h2>
+            
+            <div className="space-y-5">
+              <div>
+                <label className="block text-slate-300 mb-2 font-medium">
+                  Purchase Price: {formatCurrency(purchasePrice)}
+                </label>
+                <input
+                  type="range"
+                  min="100000"
+                  max="2000000"
+                  step="10000"
+                  value={purchasePrice}
+                  onChange={(e) => setPurchasePrice(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-2 font-medium">
+                  Down Payment: {downPayment}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="50"
+                  step="5"
+                  value={downPayment}
+                  onChange={(e) => setDownPayment(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-2 font-medium">
+                  Bank Interest Rate: {interestRate}%
+                </label>
+                <input
+                  type="range"
+                  min="2"
+                  max="12"
+                  step="0.25"
+                  value={interestRate}
+                  onChange={(e) => setInterestRate(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-2 font-medium">
+                  Loan Term: {loanTermYears} years
+                </label>
+                <input
+                  type="range"
+                  min="10"
+                  max="30"
+                  step="5"
+                  value={loanTermYears}
+                  onChange={(e) => setLoanTermYears(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-2 font-medium">
+                  Monthly Rental Income: {formatCurrency(monthlyRent)}
+                </label>
+                <input
+                  type="range"
+                  min="1000"
+                  max="50000"
+                  step="500"
+                  value={monthlyRent}
+                  onChange={(e) => setMonthlyRent(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-6 shadow-xl border border-slate-700">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+              <Calendar className="text-emerald-400" size={24} />
+              Monthly Breakdown
+            </h2>
+            
+            <div className="space-y-4">
+              <div className="bg-slate-700 rounded-lg p-4">
+                <p className="text-slate-400 text-sm mb-1">Monthly Rental Income</p>
+                <p className="text-2xl font-bold text-emerald-400">{formatCurrency(monthlyRent)}</p>
+              </div>
+
+              <div className="bg-slate-700 rounded-lg p-4">
+                <p className="text-slate-400 text-sm mb-1">Monthly Mortgage Payment</p>
+                <p className="text-2xl font-bold text-red-400">-{formatCurrency(monthlyPayment)}</p>
+              </div>
+
+              <div className="bg-gradient-to-r from-emerald-600 to-emerald-500 rounded-lg p-4">
+                <p className="text-emerald-100 text-sm mb-1">Monthly Cash Flow</p>
+                <p className="text-3xl font-bold text-white">{formatCurrency(monthlyCashFlow)}</p>
+              </div>
+
+              <div className="bg-slate-700 rounded-lg p-4 mt-6">
+                <p className="text-slate-400 text-sm mb-1">Down Payment Required</p>
+                <p className="text-xl font-bold text-blue-400">{formatCurrency(downPaymentAmount)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800 rounded-xl p-8 shadow-xl border border-slate-700">
+          <h2 className="text-3xl font-bold text-white mb-8 text-center flex items-center justify-center gap-2">
+            <TrendingUp className="text-yellow-400" size={32} />
+            After {loanTermYears} Years: Who Made More?
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="bg-gradient-to-br from-slate-700 to-slate-600 rounded-xl p-6 border-2 border-slate-500">
+              <h3 className="text-2xl font-bold text-slate-200 mb-4 text-center">🏦 The Bank</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Loan Amount:</span>
+                  <span className="text-white font-semibold">{formatCurrency(loanAmount)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Total Received:</span>
+                  <span className="text-white font-semibold">{formatCurrency(totalPaid)}</span>
+                </div>
+                <div className="border-t border-slate-500 pt-3 mt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-200 font-medium">Interest Profit:</span>
+                    <span className="text-yellow-400 font-bold text-2xl">{formatCurrency(totalInterest)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-500 rounded-xl p-6 border-2 border-emerald-400">
+              <h3 className="text-2xl font-bold text-white mb-4 text-center">🏆 You (Asset Controller)</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-emerald-100">Total Rent Collected:</span>
+                  <span className="text-white font-semibold">{formatCurrency(totalRentCollected)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-emerald-100">Paid to Bank:</span>
+                  <span className="text-white font-semibold">-{formatCurrency(totalMortgagePaid)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-emerald-100">Net Cash Flow:</span>
+                  <span className="text-white font-semibold">{formatCurrency(netCashFlow)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-emerald-100">Asset Value:</span>
+                  <span className="text-white font-semibold">{formatCurrency(purchasePrice)}</span>
+                </div>
+                <div className="border-t border-emerald-400 pt-3 mt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-white font-medium">Total Wealth Created:</span>
+                    <span className="text-yellow-300 font-bold text-2xl">{formatCurrency(totalWealth)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 bg-gradient-to-r from-yellow-500 to-yellow-400 rounded-xl p-6 text-center">
+            <p className="text-slate-900 font-bold text-3xl mb-2">
+              You made {((totalWealth / totalInterest) - 1).toFixed(1)}x more than the bank!
+            </p>
+            <p className="text-slate-800 text-lg">
+              ROI on your {formatCurrency(downPaymentAmount)} down payment: <span className="font-bold">{roi.toFixed(0)}%</span>
+            </p>
+          </div>
+
+          <div className="mt-6 bg-blue-900 bg-opacity-50 rounded-lg p-6 border border-blue-700">
+            <h4 className="text-blue-300 font-bold text-lg mb-2">💡 Key Insight:</h4>
+            <p className="text-slate-200">
+              By controlling the asset instead of just lending money, you generate income from rent, 
+              build equity as the loan is paid down, and own the appreciating asset at the end. 
+              The bank only earns interest on the loan amount.
+            </p>
+          </div>
+
+          {/* CTA Button */}
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => setShowForm(true)}
+              className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              💼 Get Your Personalized Investment Strategy
+            </button>
+            <p className="text-slate-400 mt-3">Let's discuss how to apply this strategy to your situation</p>
+          </div>
+        </div>
+
+        {/* Contact Form Modal */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-xl p-8 max-w-md w-full border border-slate-700 shadow-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-white">Get Your Custom Analysis</h3>
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="text-slate-400 hover:text-white text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-slate-300 mb-2 flex items-center gap-2">
+                    <User size={18} />
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleFormChange}
+                    required
+                    className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="John Doe"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 mb-2 flex items-center gap-2">
+                    <Mail size={18} />
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleFormChange}
+                    required
+                    className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="john@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 mb-2 flex items-center gap-2">
+                    <Phone size={18} />
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleFormChange}
+                    className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="+1 (555) 123-4567"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 mb-2">
+                    Message (Optional)
+                  </label>
+                  <textarea
+                    name="message"
+                    value={formData.message}
+                    onChange={handleFormChange}
+                    rows="3"
+                    className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Tell us about your investment goals..."
+                  />
+                </div>
+
+                <div className="bg-slate-700 rounded-lg p-3 text-sm text-slate-300">
+                  <p className="font-semibold mb-1">Your calculation results will be included:</p>
+                  <p>• Currency: {currencies[currency].name}</p>
+                  <p>• Purchase Price: {formatCurrency(purchasePrice)}</p>
+                  <p>• Projected Wealth: {formatCurrency(totalWealth)}</p>
+                  <p>• ROI: {roi.toFixed(0)}%</p>
+                </div>
+
+                {submitStatus === 'success' && (
+                  <div className="bg-emerald-500 bg-opacity-20 border border-emerald-500 text-emerald-300 rounded-lg p-3 text-center">
+                    ✓ Thank you! We'll contact you soon.
+                  </div>
+                )}
+
+                {submitStatus === 'error' && (
+                  <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-300 rounded-lg p-3 text-center">
+                    ✗ Something went wrong. Please try again.
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>Processing...</>
+                  ) : (
+                    <>
+                      <Send size={20} />
+                      Send My Results
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
